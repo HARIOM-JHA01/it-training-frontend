@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Message from "./Message";
 import EvaluationScreen from "./EvaluationScreen";
+import PromptManager from "./PromptManager";
 import "./ChatWindow.css";
+import API_BASE_URL from "../config/api";
 
 const ChatWindow = () => {
   const [messages, setMessages] = useState([]);
@@ -12,6 +14,7 @@ const ChatWindow = () => {
   const [name, setName] = useState("");
   const [chatStarted, setChatStarted] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
+  const [showPromptManager, setShowPromptManager] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const chatBoxRef = useRef(null);
 
@@ -41,7 +44,7 @@ const ChatWindow = () => {
 
   const startChat = async () => {
     try {
-      const res = await axios.post("http://172.83.13.140:5000/api/chat/start", { name });
+      const res = await axios.post(`${API_BASE_URL}/api/chat/start`, { name });
       setMessages([{ role: "ai", content: res.data.aiResponse }]);
       setLastActivity(Date.now());
     } catch (error) {
@@ -83,14 +86,13 @@ const ChatWindow = () => {
     setLastActivity(Date.now());
 
     try {
-      const res = await axios.post("http://172.83.13.140:5000/api/chat/respond", {
+      const res = await axios.post(`${API_BASE_URL}/api/chat/respond`, {
         conversationHistory: updatedMessages,
         userMessage: input,
       });
       const aiMessage = { role: "ai", content: res.data.aiResponse };
       setMessages([...updatedMessages, aiMessage]);
       
-      // Check if the conversation is complete
       if (isConversationComplete(aiMessage)) {
         setShowEvaluation(true);
       }
@@ -126,6 +128,19 @@ const ChatWindow = () => {
 
   if (showEvaluation) {
     return <EvaluationScreen conversationHistory={messages} onRestart={handleRestart} />;
+  }
+  
+  if (showPromptManager) {
+    return (
+      <>
+        <div className="chat-container">
+          <div className="chat-header">
+            <span>IT Training Chat</span>
+          </div>
+        </div>
+        <PromptManager onClose={() => setShowPromptManager(false)} />
+      </>
+    );
   }
 
   if (initialLoading && !chatStarted) {
@@ -174,9 +189,14 @@ const ChatWindow = () => {
     <div className="chat-container">
       <div className="chat-header">
         <span>IT Training Chat</span>
-        <button className="end-conversation-btn" onClick={handleEndConversation}>
-          End Conversation
-        </button>
+        <div className="header-buttons">
+          <button className="prompt-manager-btn" onClick={() => setShowPromptManager(true)}>
+            Manage Prompts
+          </button>
+          <button className="end-conversation-btn" onClick={handleEndConversation}>
+            End Conversation
+          </button>
+        </div>
       </div>
       <div className="chat-box" ref={chatBoxRef}>
         {messages.map((msg, index) => (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './EvaluationScreen.css';
+import API_BASE_URL from '../config/api';
 
 const EvaluationScreen = ({ conversationHistory, onRestart }) => {
   const [evaluation, setEvaluation] = useState(null);
@@ -10,9 +11,10 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
   useEffect(() => {
     const fetchEvaluation = async () => {
       try {
-        const response = await axios.post('http://172.83.13.140:5000/api/chat/evaluate', {
-          conversationHistory
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/api/chat/evaluate`,
+          { conversationHistory }
+        );
         setEvaluation(response.data);
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to fetch evaluation');

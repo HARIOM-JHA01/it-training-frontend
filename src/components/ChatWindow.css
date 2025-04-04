@@ -23,6 +23,29 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.header-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.prompt-manager-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.prompt-manager-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
 .chat-box {
   flex: 1;
   overflow-y: auto;
@@ -339,4 +362,4 @@
   .start-button {
     width: 100%;
   }
-} 
+}
