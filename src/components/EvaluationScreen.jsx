@@ -2,11 +2,14 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './EvaluationScreen.css';
 import API_BASE_URL from '../config/api';
+import PromptManager from './PromptManager';
 
 const EvaluationScreen = ({ conversationHistory, onRestart }) => {
   const [evaluation, setEvaluation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activePrompt, setActivePrompt] = useState(null);
+  const [showPromptManager, setShowPromptManager] = useState(false);
 
   useEffect(() => {
     const fetchEvaluation = async () => {
@@ -16,6 +19,10 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
           { conversationHistory }
         );
         setEvaluation(response.data);
+        
+        // Fetch the active evaluation prompt
+        const promptResponse = await axios.get(`${API_BASE_URL}/api/prompts/active/evaluation`);
+        setActivePrompt(promptResponse.data);
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to fetch evaluation');
       } finally {
@@ -25,6 +32,19 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
 
     fetchEvaluation();
   }, [conversationHistory]);
+
+  if (showPromptManager) {
+    return (
+      <>
+        <div className="evaluation-container">
+          <div className="evaluation-header">
+            <h1>Performance Evaluation</h1>
+          </div>
+        </div>
+        <PromptManager onClose={() => setShowPromptManager(false)} />
+      </>
+    );
+  }
 
   if (loading) {
     return (
@@ -72,7 +92,7 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
               className="score-circle"
               style={{ "--percentage": `${value.percentage}%` }}
             >
-              <div className="score-value">{value.score}/5</div>
+              <div className="score-value">{value.score}/10</div>
             </div>
             <div className="score-label">Score</div>
             <ul className="feedback-list">
@@ -106,11 +126,38 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
         </div>
       </div>
 
-      <button className="restart-button" onClick={onRestart}>
-        Start New Conversation
-      </button>
+      {activePrompt && (
+        <div className="evaluation-prompt">
+          <h2>Evaluation Criteria</h2>
+          <div className="prompt-content">
+            <p>This evaluation was conducted using the following criteria:</p>
+            <pre>{activePrompt.content}</pre>
+          </div>
+        </div>
+      )}
+
+      <div className="conversation-history">
+        <h2>Conversation History</h2>
+        <div className="conversation-messages">
+          {conversationHistory.map((message, index) => (
+            <div key={index} className={`message ${message.role}`}>
+              <strong>{message.role === 'ai' ? 'Internal Client' : 'PM'}:</strong>
+              <p>{message.content}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="evaluation-actions">
+        <button className="restart-button" onClick={onRestart}>
+          Start New Conversation
+        </button>
+        <button className="manage-prompts-button" onClick={() => setShowPromptManager(true)}>
+          Manage Prompts
+        </button>
+      </div>
     </div>
   );
 };
 
-export default EvaluationScreen; 
+export default EvaluationScreen;

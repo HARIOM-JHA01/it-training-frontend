@@ -7,6 +7,7 @@ const PromptManager = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState('greeting');
   const [prompts, setPrompts] = useState([]);
   const [activePrompt, setActivePrompt] = useState(null);
+  const [defaultPrompt, setDefaultPrompt] = useState(null);
   const [newPromptContent, setNewPromptContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,12 +36,13 @@ const PromptManager = ({ onClose }) => {
       const activePromptResponse = await axios.get(`${API_BASE_URL}/api/prompts/active/${activeTab}`);
       setActivePrompt(activePromptResponse.data);
       
-      // Initialize new prompt content with the active prompt's content
-      if (activePromptResponse.data && activePromptResponse.data.content) {
-        setNewPromptContent(activePromptResponse.data.content);
-      } else {
-        setNewPromptContent('');
+      // Set the default prompt
+      if (activePromptResponse.data && activePromptResponse.data.isDefault) {
+        setDefaultPrompt(activePromptResponse.data);
       }
+
+      // Initialize new prompt content
+      setNewPromptContent('');
     } catch (err) {
       console.error('Error fetching prompts:', err);
       setError('Failed to load prompts. Please try again.');
@@ -155,7 +157,22 @@ const PromptManager = ({ onClose }) => {
             </button>
           </div>
           
-          <h3>Existing Prompts</h3>
+          <h3>Default Prompt</h3>
+          {defaultPrompt ? (
+            <div className="prompt-item default">
+              <div className="prompt-preview">{defaultPrompt.content}</div>
+              <div className="prompt-actions">
+                <span className="default-badge">Default</span>
+                {activePrompt && activePrompt.id === defaultPrompt.id && (
+                  <span className="active-badge">Active</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="no-prompts">No default prompt available.</div>
+          )}
+
+          <h3>Custom Prompts</h3>
           {loading && <div className="loading">Loading prompts...</div>}
           
           {!loading && prompts.length === 0 && (

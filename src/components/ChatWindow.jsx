@@ -12,23 +12,14 @@ const ChatWindow = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [name, setName] = useState("");
+  const [clientName, setClientName] = useState("");
   const [chatStarted, setChatStarted] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
   const [showPromptManager, setShowPromptManager] = useState(false);
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [showDebugPanel, setShowDebugPanel] = useState(true);
+  const [requestPayload, setRequestPayload] = useState(null);
+  const [responseData, setResponseData] = useState(null);
   const chatBoxRef = useRef(null);
-
-  // Check for conversation timeout (5 minutes of inactivity)
-  useEffect(() => {
-    const timeout = 5 * 60 * 1000; // 5 minutes
-    const interval = setInterval(() => {
-      if (Date.now() - lastActivity > timeout && messages.length > 0) {
-        setShowEvaluation(true);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [lastActivity, messages.length]);
 
   useEffect(() => {
     if (chatStarted) {
@@ -44,9 +35,12 @@ const ChatWindow = () => {
 
   const startChat = async () => {
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/chat/start`, { name });
+      const payload = { name, clientName };
+      setRequestPayload(payload);
+      const res = await axios.post(`${API_BASE_URL}/api/chat/start`, payload);
+      setResponseData(res.data);
       setMessages([{ role: "ai", content: res.data.aiResponse }]);
-      setLastActivity(Date.now());
+      // Removed inactivity tracking
     } catch (error) {
       console.error("Error starting chat:", error);
       alert("Failed to start chat. Please try again.");
@@ -83,13 +77,15 @@ const ChatWindow = () => {
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
-    setLastActivity(Date.now());
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/chat/respond`, {
+      const payload = {
         conversationHistory: updatedMessages,
         userMessage: input,
-      });
+      };
+      setRequestPayload(payload);
+      const res = await axios.post(`${API_BASE_URL}/api/chat/respond`, payload);
+      setResponseData(res.data);
       const aiMessage = { role: "ai", content: res.data.aiResponse };
       setMessages([...updatedMessages, aiMessage]);
       
@@ -125,6 +121,10 @@ const ChatWindow = () => {
       setShowEvaluation(true);
     }
   };
+  
+  const toggleDebugPanel = () => {
+    setShowDebugPanel(!showDebugPanel);
+  };
 
   if (showEvaluation) {
     return <EvaluationScreen conversationHistory={messages} onRestart={handleRestart} />;
@@ -159,10 +159,21 @@ const ChatWindow = () => {
               className="name-input"
               required
             />
+            <input
+              type="text"
+              placeholder="Enter client name"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              className="name-input"
+              required
+            />
             <button type="submit" className="start-button">
               Start Chat
             </button>
           </form>
+          <button className="prompt-manager-btn welcome-prompt-btn" onClick={() => setShowPromptManager(true)}>
+            Manage Prompts
+          </button>
         </div>
       </div>
     );
@@ -190,6 +201,9 @@ const ChatWindow = () => {
       <div className="chat-header">
         <span>IT Training Chat</span>
         <div className="header-buttons">
+          <button className="debug-panel-btn" onClick={toggleDebugPanel}>
+            {showDebugPanel ? "Hide Request Panel" : "Show Request Panel"}
+          </button>
           <button className="prompt-manager-btn" onClick={() => setShowPromptManager(true)}>
             Manage Prompts
           </button>
@@ -198,11 +212,32 @@ const ChatWindow = () => {
           </button>
         </div>
       </div>
-      <div className="chat-box" ref={chatBoxRef}>
-        {messages.map((msg, index) => (
-          <Message key={index} role={msg.role} content={msg.content} />
-        ))}
-        {loading && <div className="thinking">Thinking...</div>}
+      <div className="dashboard-container">
+        <div className="chat-panel">
+          <div className="chat-box" ref={chatBoxRef}>
+            {messages.map((msg, index) => (
+              <Message key={index} role={msg.role} content={msg.content} />
+            ))}
+            {loading && <div className="thinking">Thinking...</div>}
+          </div>
+        </div>
+        {showDebugPanel && (
+          <div className="debug-panel">
+            <div className="debug-panel-header">
+              <h3>Complete Request & Prompt Data</h3>
+            </div>
+            <div className="debug-panel-content">
+              <h4>Request Payload:</h4>
+              <pre>{requestPayload ? JSON.stringify(requestPayload, null, 2) : "No request data available"}</pre>
+              
+              <h4>Prompt Information:</h4>
+              <pre>{responseData && responseData.promptInfo ? JSON.stringify(responseData.promptInfo, null, 2) : "No prompt data available"}</pre>
+              
+              <h4>Response Data:</h4>
+              <pre>{responseData ? JSON.stringify(responseData, null, 2) : "No response data available"}</pre>
+            </div>
+          </div>
+        )}
       </div>
       <div className="input-container">
         <input
