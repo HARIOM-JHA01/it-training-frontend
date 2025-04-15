@@ -66,7 +66,7 @@ const ChatWindow = () => {
 
   const sendMessage = async () => {
     // Prevent sending if input is empty, loading, or max interactions reached
-    if (!input.trim() || loading || currentInteraction >= totalInteractions) return;
+    if (!input.trim() || loading || currentInteraction > totalInteractions) return;
 
     const newMessage = { role: "user", content: input };
     const updatedMessages = [...messages, newMessage];
@@ -238,7 +238,7 @@ const ChatWindow = () => {
             onClick={handleEndConversation}
             disabled={currentInteraction > totalInteractions}
           >
-            {currentInteraction >= totalInteractions ? "View Evaluation" : "End Conversation"}
+            {currentInteraction > totalInteractions ? "View Evaluation" : "End Conversation"}
           </button>
         </div>
       </div>
@@ -283,7 +283,7 @@ const ChatWindow = () => {
         )}
       </div>
       <div className="input-container">
-        {(currentInteraction >= totalInteractions) ? (
+        {(currentInteraction > totalInteractions) ? (
           <button
             onClick={() => setShowEvaluation(true)}
             className="show-results-button"
@@ -298,9 +298,9 @@ const ChatWindow = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading || currentInteraction >= totalInteractions}
+              disabled={loading || currentInteraction > totalInteractions}
             />
-            <button onClick={sendMessage} disabled={loading || currentInteraction >= totalInteractions}>
+            <button onClick={sendMessage} disabled={loading || currentInteraction > totalInteractions}>
               {loading ? "Sending..." : "Send"}
             </button>
           </>
