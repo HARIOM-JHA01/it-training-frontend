@@ -3,6 +3,7 @@ import axios from 'axios';
 import './EvaluationScreen.css';
 import API_BASE_URL from '../config/api';
 import PromptManager from './PromptManager';
+import featureFlags from '../config/featureFlags';
 
 const EvaluationScreen = ({ conversationHistory, onRestart }) => {
   const [evaluation, setEvaluation] = useState(null);
@@ -10,6 +11,7 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
   const [error, setError] = useState(null);
   const [activePrompt, setActivePrompt] = useState(null);
   const [showPromptManager, setShowPromptManager] = useState(false);
+  const [activeTab, setActiveTab] = useState('category'); // 'category' or 'interaction'
 
   useEffect(() => {
     const fetchEvaluation = async () => {
@@ -20,9 +22,11 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
         );
         setEvaluation(response.data);
         
-        // Fetch the active evaluation prompt
-        const promptResponse = await axios.get(`${API_BASE_URL}/api/prompts/active/evaluation`);
-        setActivePrompt(promptResponse.data);
+        // Only fetch the active evaluation prompt if feature flag is enabled
+        if (featureFlags.showEvaluationCriteria) {
+          const promptResponse = await axios.get(`${API_BASE_URL}/api/prompts/active/evaluation`);
+          setActivePrompt(promptResponse.data);
+        }
       } catch (err) {
         setError(err.response?.data?.error || 'Failed to fetch evaluation');
       } finally {
@@ -32,8 +36,56 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
 
     fetchEvaluation();
   }, [conversationHistory]);
+  
+  // Group conversation history by interaction
+  const getInteractionMessages = () => {
+    if (!conversationHistory) return [];
+    
+    // Create an array of interactions, each containing client and PM messages
+    const interactions = [];
+    
+    // Add the greeting as the first interaction
+    if (conversationHistory.length > 0) {
+      const firstClientMessage = conversationHistory[0];
+      if (firstClientMessage.role === 'ai') {
+        interactions.push({
+          step: 1,
+          client: firstClientMessage.content,
+          pm: conversationHistory[1]?.role === 'user' ? conversationHistory[1].content : null,
+          modelAnswer: evaluation?.modelAnswers?.find(ma => ma.interactionStep === 1)?.example || null
+        });
+      }
+    }
+    
+    // Process the rest of the messages
+    for (let i = 2; i < conversationHistory.length; i += 2) {
+      const clientMessage = conversationHistory[i]?.role === 'ai' ? conversationHistory[i] : null;
+      const pmMessage = conversationHistory[i+1]?.role === 'user' ? conversationHistory[i+1] : null;
+      
+      if (clientMessage) {
+        interactions.push({
+          step: interactions.length + 1,
+          client: clientMessage.content,
+          pm: pmMessage?.content || null,
+          modelAnswer: evaluation?.modelAnswers?.find(ma => ma.interactionStep === interactions.length + 1)?.example || null
+        });
+      }
+    }
+    
+    // If we have fewer than 6 interactions, fill in the missing ones
+    while (interactions.length < 6) {
+      interactions.push({
+        step: interactions.length + 1,
+        client: null,
+        pm: null,
+        modelAnswer: evaluation?.modelAnswers?.find(ma => ma.interactionStep === interactions.length + 1)?.example || null
+      });
+    }
+    
+    return interactions;
+  };
 
-  if (showPromptManager) {
+  if (showPromptManager && featureFlags.showPromptManager) {
     return (
       <>
         <div className="evaluation-container">
@@ -77,56 +129,143 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
     );
   }
 
+  const interactionMessages = getInteractionMessages();
+
   return (
     <div className="evaluation-container">
       <div className="evaluation-header">
         <h1>Performance Evaluation</h1>
         <p>Here's a detailed analysis of your project management skills based on the conversation.</p>
       </div>
-
-      <div className="evaluation-grid">
-        {Object.entries(evaluation.evaluation).map(([key, value]) => (
-          <div key={key} className="evaluation-card">
-            <h3>{key.charAt(0).toUpperCase() + key.slice(1)}</h3>
-            <div 
-              className="score-circle"
-              style={{ "--percentage": `${value.percentage}%` }}
-            >
-              <div className="score-value">{value.score}/10</div>
+      
+      <div className="evaluation-tabs">
+        <button 
+          className={`tab-button ${activeTab === 'category' ? 'active' : ''}`}
+          onClick={() => setActiveTab('category')}
+        >
+          Category Evaluation
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'interaction' ? 'active' : ''}`}
+          onClick={() => setActiveTab('interaction')}
+        >
+          Interaction Model Answers
+        </button>
+      </div>
+      
+      {activeTab === 'category' ? (
+        <>
+          {evaluation.interactionMetrics && (
+            <div className="interaction-metrics">
+              <h2>Conversation Progress</h2>
+              <div className="progress-bar-container">
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${(evaluation.interactionMetrics.completedInteractions / evaluation.interactionMetrics.totalInteractions) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="progress-labels">
+                  <span>Interactions Completed: {evaluation.interactionMetrics.completedInteractions} of {evaluation.interactionMetrics.totalInteractions}</span>
+                  <span>Completion: {Math.round((evaluation.interactionMetrics.completedInteractions / evaluation.interactionMetrics.totalInteractions) * 100)}%</span>
+                </div>
+              </div>
             </div>
-            <div className="score-label">Score</div>
-            <ul className="feedback-list">
-              {value.feedback.map((item, index) => (
-                <li key={index}>{item}</li>
-              ))}
-            </ul>
+          )}
+
+          <div className="evaluation-grid">
+            {Object.entries(evaluation.evaluation).map(([key, value]) => (
+              <div key={key} className="evaluation-card">
+                <h3>{key.charAt(0).toUpperCase() + key.slice(1)}</h3>
+                <div 
+                  className="score-circle"
+                  style={{ "--percentage": `${value.percentage}%` }}
+                >
+                  <div className="score-value">{value.score}/10</div>
+                </div>
+                <div className="score-label">Score</div>
+                <ul className="feedback-list">
+                  {value.feedback.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+                
+                {value.modelAnswer && (
+                  <div className="model-answer">
+                    <h4>Model Response Example</h4>
+                    <p>{value.modelAnswer}</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="overall-feedback">
-        <h2>Overall Assessment</h2>
-        
-        <div className="strengths">
-          <h3>Key Strengths</h3>
-          <ul>
-            {evaluation.overallFeedback.strengths.map((strength, index) => (
-              <li key={index}>{strength}</li>
-            ))}
-          </ul>
+          <div className="overall-feedback">
+            <h2>Overall Assessment</h2>
+            
+            <div className="strengths">
+              <h3>Key Strengths</h3>
+              <ul>
+                {evaluation.overallFeedback.strengths.map((strength, index) => (
+                  <li key={index}>{strength}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="improvements">
+              <h3>Areas for Improvement</h3>
+              <ul>
+                {evaluation.overallFeedback.areasForImprovement.map((area, index) => (
+                  <li key={index}>{area}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="interaction-model-answers">
+          <h2>Step-by-Step Model Responses</h2>
+          <p className="model-answers-intro">
+            Below are examples of model responses for each interaction in the conversation. 
+            Compare these with your own responses to see how you might improve your communication approach.
+          </p>
+          
+          {interactionMessages.map((interaction) => (
+            <div key={interaction.step} className="interaction-comparison">
+              <div className="interaction-header">
+                <h3>Interaction {interaction.step}</h3>
+              </div>
+              
+              <div className="messages-container">
+                <div className="client-message">
+                  <h4>Internal Client</h4>
+                  <div className="message-content">
+                    {interaction.client || 'No message in this interaction'}
+                  </div>
+                </div>
+                
+                <div className="pm-messages">
+                  <div className="your-response">
+                    <h4>Your Response</h4>
+                    <div className="message-content">
+                      {interaction.pm || 'No response in this interaction'}
+                    </div>
+                  </div>
+                  
+                  <div className="model-response">
+                    <h4>Model Response Example</h4>
+                    <div className="message-content model">
+                      {interaction.modelAnswer || 'No model answer available'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+      )}
 
-        <div className="improvements">
-          <h3>Areas for Improvement</h3>
-          <ul>
-            {evaluation.overallFeedback.areasForImprovement.map((area, index) => (
-              <li key={index}>{area}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      {activePrompt && (
+      {featureFlags.showEvaluationCriteria && activePrompt && (
         <div className="evaluation-prompt">
           <h2>Evaluation Criteria</h2>
           <div className="prompt-content">
@@ -152,9 +291,11 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
         <button className="restart-button" onClick={onRestart}>
           Start New Conversation
         </button>
-        <button className="manage-prompts-button" onClick={() => setShowPromptManager(true)}>
-          Manage Prompts
-        </button>
+        {featureFlags.showPromptManager && (
+          <button className="manage-prompts-button" onClick={() => setShowPromptManager(true)}>
+            Manage Prompts
+          </button>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import EvaluationScreen from "./EvaluationScreen";
 import PromptManager from "./PromptManager";
 import "./ChatWindow.css";
 import API_BASE_URL from "../config/api";
+import featureFlags from "../config/featureFlags";
 
 const ChatWindow = () => {
   const [messages, setMessages] = useState([]);
@@ -16,9 +17,11 @@ const ChatWindow = () => {
   const [chatStarted, setChatStarted] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
   const [showPromptManager, setShowPromptManager] = useState(false);
-  const [showDebugPanel, setShowDebugPanel] = useState(true);
+  const [showDebugPanel, setShowDebugPanel] = useState(featureFlags.showDebugPanel);
   const [requestPayload, setRequestPayload] = useState(null);
   const [responseData, setResponseData] = useState(null);
+  const [currentInteraction, setCurrentInteraction] = useState(1);
+  const [totalInteractions, setTotalInteractions] = useState(6); // Default to 6 interactions
   const chatBoxRef = useRef(null);
 
   useEffect(() => {
@@ -40,7 +43,12 @@ const ChatWindow = () => {
       const res = await axios.post(`${API_BASE_URL}/api/chat/start`, payload);
       setResponseData(res.data);
       setMessages([{ role: "ai", content: res.data.aiResponse }]);
-      // Removed inactivity tracking
+
+      // Set interaction information from response
+      if (res.data.promptInfo) {
+        setCurrentInteraction(res.data.promptInfo.interactionStep || 1);
+        setTotalInteractions(res.data.promptInfo.totalInteractions || 6);
+      }
     } catch (error) {
       console.error("Error starting chat:", error);
       alert("Failed to start chat. Please try again.");
@@ -56,22 +64,14 @@ const ChatWindow = () => {
     }
   };
 
-  const isConversationComplete = (aiMessage) => {
-    const content = aiMessage.content.toLowerCase();
-    return (
-      // Check for explicit completion phrases
-      content.includes('thank') && 
-      (content.includes('appreciate') || content.includes('helpful')) ||
-      // Check for implicit completion
-      content.includes('conversation complete') ||
-      content.includes('end of our discussion') ||
-      content.includes('goodbye')
-    );
-  };
-
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
-    
+
+    // Don't allow sending if we've reached the maximum interactions
+    if (currentInteraction > totalInteractions) {
+      return;
+    }
+
     const newMessage = { role: "user", content: input };
     const updatedMessages = [...messages, newMessage];
     setMessages(updatedMessages);
@@ -88,9 +88,22 @@ const ChatWindow = () => {
       setResponseData(res.data);
       const aiMessage = { role: "ai", content: res.data.aiResponse };
       setMessages([...updatedMessages, aiMessage]);
-      
-      if (isConversationComplete(aiMessage)) {
-        setShowEvaluation(true);
+
+      // Update interaction step from response
+      if (res.data.promptInfo) {
+        const newStep = res.data.promptInfo.interactionStep;
+        setCurrentInteraction(newStep);
+
+        // Check if we've reached the final interaction
+        if (newStep >= totalInteractions) {
+          // Automatically scroll to show the completion message
+          setTimeout(() => {
+            chatBoxRef.current?.scrollTo({
+              top: chatBoxRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }, 300);
+        }
       }
     } catch (error) {
       console.error("Error sending message:", error);
@@ -114,6 +127,7 @@ const ChatWindow = () => {
     setName("");
     setChatStarted(false);
     setShowEvaluation(false);
+    setCurrentInteraction(1);
   };
 
   const handleEndConversation = () => {
@@ -121,7 +135,7 @@ const ChatWindow = () => {
       setShowEvaluation(true);
     }
   };
-  
+
   const toggleDebugPanel = () => {
     setShowDebugPanel(!showDebugPanel);
   };
@@ -129,7 +143,7 @@ const ChatWindow = () => {
   if (showEvaluation) {
     return <EvaluationScreen conversationHistory={messages} onRestart={handleRestart} />;
   }
-  
+
   if (showPromptManager) {
     return (
       <>
@@ -171,9 +185,11 @@ const ChatWindow = () => {
               Start Chat
             </button>
           </form>
-          <button className="prompt-manager-btn welcome-prompt-btn" onClick={() => setShowPromptManager(true)}>
-            Manage Prompts
-          </button>
+          {featureFlags.showPromptManager && (
+            <button className="prompt-manager-btn welcome-prompt-btn" onClick={() => setShowPromptManager(true)}>
+              Manage Prompts
+            </button>
+          )}
         </div>
       </div>
     );
@@ -200,15 +216,33 @@ const ChatWindow = () => {
     <div className="chat-container">
       <div className="chat-header">
         <span>IT Training Chat</span>
+        <div className="interaction-indicator">
+          <div className="interaction-progress">
+            <div className="interaction-label">Interaction {currentInteraction} of {totalInteractions}</div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(currentInteraction / totalInteractions) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
         <div className="header-buttons">
-          <button className="debug-panel-btn" onClick={toggleDebugPanel}>
-            {showDebugPanel ? "Hide Request Panel" : "Show Request Panel"}
-          </button>
-          <button className="prompt-manager-btn" onClick={() => setShowPromptManager(true)}>
-            Manage Prompts
-          </button>
-          <button className="end-conversation-btn" onClick={handleEndConversation}>
-            End Conversation
+          {featureFlags.showDebugPanel && (
+            <button className="debug-panel-btn" onClick={toggleDebugPanel}>
+              {showDebugPanel ? "Hide Request Panel" : "Show Request Panel"}
+            </button>
+          )}
+          {featureFlags.showPromptManager && (
+            <button className="prompt-manager-btn" onClick={() => setShowPromptManager(true)}>
+              Manage Prompts
+            </button>
+          )}
+          <button
+            className="end-conversation-btn"
+            onClick={handleEndConversation}
+          >
+            {currentInteraction >= totalInteractions ? "View Evaluation" : "End Conversation"}
           </button>
         </div>
       </div>
@@ -219,6 +253,17 @@ const ChatWindow = () => {
               <Message key={index} role={msg.role} content={msg.content} />
             ))}
             {loading && <div className="thinking">Thinking...</div>}
+            {currentInteraction > totalInteractions && !loading && (
+              <div className="conversation-complete-message">
+                <div className="complete-icon">✓</div>
+                <h2>Conversation Complete!</h2>
+                <p>Great job! You've completed all {totalInteractions} interactions of this exercise.</p>
+                <p>Click the button below to view your performance evaluation.</p>
+                <button onClick={handleEndConversation} className="view-evaluation-button">
+                  View Evaluation
+                </button>
+              </div>
+            )}
           </div>
         </div>
         {showDebugPanel && (
@@ -227,12 +272,14 @@ const ChatWindow = () => {
               <h3>Complete Request & Prompt Data</h3>
             </div>
             <div className="debug-panel-content">
+              <h4>Current Interaction: {currentInteraction} of {totalInteractions}</h4>
+
               <h4>Request Payload:</h4>
               <pre>{requestPayload ? JSON.stringify(requestPayload, null, 2) : "No request data available"}</pre>
-              
+
               <h4>Prompt Information:</h4>
               <pre>{responseData && responseData.promptInfo ? JSON.stringify(responseData.promptInfo, null, 2) : "No prompt data available"}</pre>
-              
+
               <h4>Response Data:</h4>
               <pre>{responseData ? JSON.stringify(responseData, null, 2) : "No response data available"}</pre>
             </div>
@@ -240,17 +287,28 @@ const ChatWindow = () => {
         )}
       </div>
       <div className="input-container">
-        <input
-          type="text"
-          placeholder="Type your message... (Press Enter to send)"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          disabled={loading}
-        />
-        <button onClick={sendMessage} disabled={loading}>
-          {loading ? "Sending..." : "Send"}
-        </button>
+        {currentInteraction > totalInteractions ? (
+          <button
+            onClick={() => setShowEvaluation(true)}
+            className="show-results-button"
+          >
+            Show Results
+          </button>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Type your message... (Press Enter to send)"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+            />
+            <button onClick={sendMessage} disabled={loading}>
+              {loading ? "Sending..." : "Send"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
