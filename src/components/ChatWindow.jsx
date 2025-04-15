@@ -65,12 +65,8 @@ const ChatWindow = () => {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-
-    // Don't allow sending if we've reached the maximum interactions
-    if (currentInteraction > totalInteractions) {
-      return;
-    }
+    // Prevent sending if input is empty, loading, or max interactions reached
+    if (!input.trim() || loading || currentInteraction >= totalInteractions) return;
 
     const newMessage = { role: "user", content: input };
     const updatedMessages = [...messages, newMessage];
@@ -94,9 +90,8 @@ const ChatWindow = () => {
         const newStep = res.data.promptInfo.interactionStep;
         setCurrentInteraction(newStep);
 
-        // Check if we've reached the final interaction
+        // If we've reached or exceeded the final interaction, show evaluation button
         if (newStep >= totalInteractions) {
-          // Automatically scroll to show the completion message
           setTimeout(() => {
             chatBoxRef.current?.scrollTo({
               top: chatBoxRef.current.scrollHeight,
@@ -218,11 +213,11 @@ const ChatWindow = () => {
         <span>IT Training Chat</span>
         <div className="interaction-indicator">
           <div className="interaction-progress">
-            <div className="interaction-label">Interaction {currentInteraction} of {totalInteractions}</div>
+            <div className="interaction-label">Interaction {Math.min(currentInteraction, totalInteractions)} of {totalInteractions}</div>
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{ width: `${(currentInteraction / totalInteractions) * 100}%` }}
+                style={{ width: `${(Math.min(currentInteraction, totalInteractions) / totalInteractions) * 100}%` }}
               ></div>
             </div>
           </div>
@@ -241,6 +236,7 @@ const ChatWindow = () => {
           <button
             className="end-conversation-btn"
             onClick={handleEndConversation}
+            disabled={currentInteraction > totalInteractions}
           >
             {currentInteraction >= totalInteractions ? "View Evaluation" : "End Conversation"}
           </button>
@@ -259,7 +255,7 @@ const ChatWindow = () => {
                 <h2>Conversation Complete!</h2>
                 <p>Great job! You've completed all {totalInteractions} interactions of this exercise.</p>
                 <p>Click the button below to view your performance evaluation.</p>
-                <button onClick={handleEndConversation} className="view-evaluation-button">
+                <button onClick={() => setShowEvaluation(true)} className="view-evaluation-button">
                   View Evaluation
                 </button>
               </div>
@@ -287,7 +283,7 @@ const ChatWindow = () => {
         )}
       </div>
       <div className="input-container">
-        {currentInteraction > totalInteractions ? (
+        {(currentInteraction >= totalInteractions) ? (
           <button
             onClick={() => setShowEvaluation(true)}
             className="show-results-button"
@@ -302,9 +298,9 @@ const ChatWindow = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading}
+              disabled={loading || currentInteraction >= totalInteractions}
             />
-            <button onClick={sendMessage} disabled={loading}>
+            <button onClick={sendMessage} disabled={loading || currentInteraction >= totalInteractions}>
               {loading ? "Sending..." : "Send"}
             </button>
           </>
