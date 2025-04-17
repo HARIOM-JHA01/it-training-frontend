@@ -13,7 +13,7 @@ const ChatWindow = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [name, setName] = useState("");
-  const [clientName, setClientName] = useState("");
+  const [clientName] = useState("Joe"); // Fixed client name as Joe
   const [chatStarted, setChatStarted] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
   const [showPromptManager, setShowPromptManager] = useState(false);
@@ -165,14 +165,6 @@ const ChatWindow = () => {
               placeholder="Enter your name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="name-input"
-              required
-            />
-            <input
-              type="text"
-              placeholder="Enter client name"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
               className="name-input"
               required
             />
