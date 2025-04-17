@@ -12,31 +12,48 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
   const [activePrompt, setActivePrompt] = useState(null);
   const [showPromptManager, setShowPromptManager] = useState(false);
   const [activeTab, setActiveTab] = useState('category'); // 'category' or 'interaction'
+  const [modelAnswers, setModelAnswers] = useState(null);
+  const [modelAnswersLoading, setModelAnswersLoading] = useState(false);
 
   useEffect(() => {
-    const fetchEvaluation = async () => {
+    let isMounted = true;
+    const fetchScores = async () => {
+      setLoading(true);
+      setError(null);
+      setModelAnswers(null);
       try {
         const response = await axios.post(
-          `${API_BASE_URL}/api/chat/evaluate`,
+          `${API_BASE_URL}/api/chat/evaluate-scores`,
           { conversationHistory }
         );
-        setEvaluation(response.data);
-        
-        // Only fetch the active evaluation prompt if feature flag is enabled
+        if (isMounted) setEvaluation(response.data);
+        // Fetch prompt if needed
         if (featureFlags.showEvaluationCriteria) {
           const promptResponse = await axios.get(`${API_BASE_URL}/api/prompts/active/evaluation`);
-          setActivePrompt(promptResponse.data);
+          if (isMounted) setActivePrompt(promptResponse.data);
         }
+        // Start fetching model answers in background
+        setModelAnswersLoading(true);
+        axios.post(`${API_BASE_URL}/api/chat/model-answers`, { conversationHistory })
+          .then(res => {
+            if (isMounted) setModelAnswers(res.data.modelAnswers);
+          })
+          .catch(() => {
+            if (isMounted) setModelAnswers([]);
+          })
+          .finally(() => {
+            if (isMounted) setModelAnswersLoading(false);
+          });
       } catch (err) {
-        setError(err.response?.data?.error || 'Failed to fetch evaluation');
+        if (isMounted) setError(err.response?.data?.error || 'Failed to fetch evaluation');
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
-
-    fetchEvaluation();
+    fetchScores();
+    return () => { isMounted = false; };
   }, [conversationHistory]);
-  
+
   // Group conversation history by interaction
   const getInteractionMessages = () => {
     if (!conversationHistory) return [];
@@ -229,39 +246,48 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
             Below are examples of model responses for each interaction in the conversation. 
             Compare these with your own responses to see how you might improve your communication approach.
           </p>
-          
-          {interactionMessages.map((interaction) => (
-            <div key={interaction.step} className="interaction-comparison">
-              <div className="interaction-header">
-                <h3>Interaction {interaction.step}</h3>
-              </div>
-              
-              <div className="messages-container">
-                <div className="client-message">
-                  <h4>Internal Client</h4>
-                  <div className="message-content">
-                    {interaction.client || 'No message in this interaction'}
-                  </div>
-                </div>
-                
-                <div className="pm-messages">
-                  <div className="your-response">
-                    <h4>Your Response</h4>
-                    <div className="message-content">
-                      {interaction.pm || 'No response in this interaction'}
-                    </div>
-                  </div>
-                  
-                  <div className="model-response">
-                    <h4>Model Response Example</h4>
-                    <div className="message-content model">
-                      {interaction.modelAnswer || 'No model answer available'}
-                    </div>
-                  </div>
-                </div>
-              </div>
+          {modelAnswersLoading && (
+            <div style={{textAlign: 'center', margin: '2rem 0'}}>
+              <span>Loading model answers...</span>
             </div>
-          ))}
+          )}
+          {!modelAnswersLoading && modelAnswers && interactionMessages.map((interaction) => {
+            const model = modelAnswers.find(ma => ma.interactionStep === interaction.step)?.example || 'No model answer available';
+            return (
+              <div key={interaction.step} className="interaction-comparison">
+                <div className="interaction-header">
+                  <h3>Interaction {interaction.step}</h3>
+                </div>
+                <div className="messages-container">
+                  <div className="client-message">
+                    <h4>Internal Client</h4>
+                    <div className="message-content">
+                      {interaction.client || 'No message in this interaction'}
+                    </div>
+                  </div>
+                  <div className="pm-messages">
+                    <div className="your-response">
+                      <h4>Your Response</h4>
+                      <div className="message-content">
+                        {interaction.pm || 'No response in this interaction'}
+                      </div>
+                    </div>
+                    <div className="model-response">
+                      <h4>Model Response Example</h4>
+                      <div className="message-content model">
+                        {model}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {!modelAnswersLoading && !modelAnswers && (
+            <div style={{textAlign: 'center', margin: '2rem 0'}}>
+              <span>No model answers available.</span>
+            </div>
+          )}
         </div>
       )}
 

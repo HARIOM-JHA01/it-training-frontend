@@ -66,7 +66,7 @@ const ChatWindow = () => {
 
   const sendMessage = async () => {
     // Prevent sending if input is empty, loading, or max interactions reached
-    if (!input.trim() || loading || currentInteraction > totalInteractions) return;
+    if (!input.trim() || loading || currentInteraction >= totalInteractions) return;
 
     const newMessage = { role: "user", content: input };
     const updatedMessages = [...messages, newMessage];
@@ -228,9 +228,9 @@ const ChatWindow = () => {
           <button
             className="end-conversation-btn"
             onClick={handleEndConversation}
-            disabled={currentInteraction > totalInteractions}
+            disabled={currentInteraction >= totalInteractions}
           >
-            {currentInteraction > totalInteractions ? "View Evaluation" : "End Conversation"}
+            {currentInteraction >= totalInteractions ? "View Evaluation" : "End Conversation"}
           </button>
         </div>
       </div>
@@ -241,7 +241,7 @@ const ChatWindow = () => {
               <Message key={index} role={msg.role} content={msg.content} />
             ))}
             {loading && <div className="thinking">Thinking...</div>}
-            {currentInteraction > totalInteractions && !loading && (
+            {currentInteraction >= totalInteractions && !loading && (
               <div className="conversation-complete-message">
                 <div className="complete-icon">✓</div>
                 <h2>Conversation Complete!</h2>
@@ -275,7 +275,7 @@ const ChatWindow = () => {
         )}
       </div>
       <div className="input-container">
-        {(currentInteraction > totalInteractions) ? (
+        {(currentInteraction >= totalInteractions) ? (
           <button
             onClick={() => setShowEvaluation(true)}
             className="show-results-button"
@@ -290,9 +290,9 @@ const ChatWindow = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading || currentInteraction > totalInteractions}
+              disabled={loading || currentInteraction >= totalInteractions}
             />
-            <button onClick={sendMessage} disabled={loading || currentInteraction > totalInteractions}>
+            <button onClick={sendMessage} disabled={loading || currentInteraction >= totalInteractions}>
               {loading ? "Sending..." : "Send"}
             </button>
           </>
