@@ -16,7 +16,7 @@ const ChatWindow = () => {
   const [clientName] = useState("Joe"); // Fixed client name as Joe
   const [chatStarted, setChatStarted] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
-  const [showPromptManager, setShowPromptManager] = useState(true); // Add state for PromptManager visibility
+  const [showPromptManager, setShowPromptManager] = useState(false); // Add state for PromptManager visibility
   const [showDebugPanel, setShowDebugPanel] = useState(featureFlags.showDebugPanel);
   const [requestPayload, setRequestPayload] = useState(null);
   const [responseData, setResponseData] = useState(null);
