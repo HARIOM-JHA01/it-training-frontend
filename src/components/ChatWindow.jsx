@@ -16,7 +16,7 @@ const ChatWindow = () => {
   const [clientName] = useState("Joe"); // Fixed client name as Joe
   const [chatStarted, setChatStarted] = useState(false);
   const [showEvaluation, setShowEvaluation] = useState(false);
-  const [showPromptManager, setShowPromptManager] = useState(false);
+  const [showPromptManager, setShowPromptManager] = useState(true); // Add state for PromptManager visibility
   const [showDebugPanel, setShowDebugPanel] = useState(featureFlags.showDebugPanel);
   const [requestPayload, setRequestPayload] = useState(null);
   const [responseData, setResponseData] = useState(null);
@@ -65,8 +65,8 @@ const ChatWindow = () => {
   };
 
   const sendMessage = async () => {
-    // Prevent sending if input is empty, loading, or max interactions reached
-    if (!input.trim() || loading || currentInteraction >= totalInteractions) return;
+    // Prevent sending if input is empty, loading, or max interactions already completed
+    if (!input.trim() || loading || currentInteraction > totalInteractions) return;
 
     const newMessage = { role: "user", content: input };
     const updatedMessages = [...messages, newMessage];
@@ -74,10 +74,18 @@ const ChatWindow = () => {
     setInput("");
     setLoading(true);
 
+    // --- NEW: Immediately update interaction state if this is the last message ---
+    const isLastUserMessage = currentInteraction === totalInteractions;
+    if (isLastUserMessage) {
+      // Increment interaction count locally to disable input immediately
+      setCurrentInteraction(currentInteraction + 1);
+    }
+    // --- END NEW ---
+
     try {
       const payload = {
         conversationHistory: updatedMessages,
-        userMessage: input,
+        userMessage: newMessage.content, // Use content from newMessage
       };
       setRequestPayload(payload);
       const res = await axios.post(`${API_BASE_URL}/api/chat/respond`, payload);
@@ -85,13 +93,16 @@ const ChatWindow = () => {
       const aiMessage = { role: "ai", content: res.data.aiResponse };
       setMessages([...updatedMessages, aiMessage]);
 
-      // Update interaction step from response
+      // Update interaction step from response (will sync with backend)
       if (res.data.promptInfo) {
-        const newStep = res.data.promptInfo.interactionStep;
-        setCurrentInteraction(newStep);
+        const backendStep = res.data.promptInfo.interactionStep;
+        // Only update if backend step is different, otherwise keep local immediate update
+        if (backendStep !== currentInteraction) {
+           setCurrentInteraction(backendStep);
+        }
 
-        // If we've reached or exceeded the final interaction, show evaluation button
-        if (newStep >= totalInteractions) {
+        // Scroll logic (can remain as is or be adjusted based on preference)
+        if (backendStep > totalInteractions) {
           setTimeout(() => {
             chatBoxRef.current?.scrollTo({
               top: chatBoxRef.current.scrollHeight,
@@ -102,6 +113,8 @@ const ChatWindow = () => {
       }
     } catch (error) {
       console.error("Error sending message:", error);
+      // Optionally revert interaction state if API call fails?
+      // if (isLastUserMessage) setCurrentInteraction(totalInteractions);
     } finally {
       setLoading(false);
     }
@@ -230,7 +243,7 @@ const ChatWindow = () => {
             onClick={handleEndConversation}
             disabled={currentInteraction >= totalInteractions}
           >
-            {currentInteraction >= totalInteractions ? "View Evaluation" : "End Conversation"}
+            {currentInteraction > totalInteractions ? "View Evaluation" : "End Conversation"}
           </button>
         </div>
       </div>
@@ -241,7 +254,7 @@ const ChatWindow = () => {
               <Message key={index} role={msg.role} content={msg.content} />
             ))}
             {loading && <div className="thinking">Thinking...</div>}
-            {currentInteraction >= totalInteractions && !loading && (
+            {currentInteraction > totalInteractions && !loading && (
               <div className="conversation-complete-message">
                 <div className="complete-icon">✓</div>
                 <h2>Conversation Complete!</h2>
@@ -275,7 +288,7 @@ const ChatWindow = () => {
         )}
       </div>
       <div className="input-container">
-        {(currentInteraction >= totalInteractions) ? (
+        {(currentInteraction > totalInteractions) ? (
           <button
             onClick={() => setShowEvaluation(true)}
             className="show-results-button"
@@ -290,9 +303,9 @@ const ChatWindow = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading || currentInteraction >= totalInteractions}
+              disabled={loading || currentInteraction > totalInteractions}
             />
-            <button onClick={sendMessage} disabled={loading || currentInteraction >= totalInteractions}>
+            <button onClick={sendMessage} disabled={loading || currentInteraction > totalInteractions}>
               {loading ? "Sending..." : "Send"}
             </button>
           </>
