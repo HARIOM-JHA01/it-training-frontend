@@ -12,6 +12,7 @@ const PromptManager = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [expandedPrompts, setExpandedPrompts] = useState({});
 
   const promptTypes = [
     { id: 'greeting', label: 'Greeting Prompts' },
@@ -43,6 +44,8 @@ const PromptManager = ({ onClose }) => {
 
       // Initialize new prompt content
       setNewPromptContent('');
+      // Reset expanded states when switching tabs
+      setExpandedPrompts({});
     } catch (err) {
       console.error('Error fetching prompts:', err);
       setError('Failed to load prompts. Please try again.');
@@ -103,6 +106,13 @@ const PromptManager = ({ onClose }) => {
     }
   };
 
+  const togglePromptExpansion = (id) => {
+    setExpandedPrompts(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
   const getPlaceholderText = () => {
     switch (activeTab) {
       case 'greeting':
@@ -160,8 +170,18 @@ const PromptManager = ({ onClose }) => {
           <h3>Default Prompt</h3>
           {defaultPrompt ? (
             <div className="prompt-item default">
-              <div className="prompt-preview">{defaultPrompt.content}</div>
+              <div className={`prompt-preview ${expandedPrompts['default'] ? 'expanded' : ''}`}>
+                {expandedPrompts['default'] 
+                  ? defaultPrompt.content 
+                  : `${defaultPrompt.content.substring(0, 200)}${defaultPrompt.content.length > 200 ? '...' : ''}`}
+              </div>
               <div className="prompt-actions">
+                <button 
+                  className="toggle-button" 
+                  onClick={() => togglePromptExpansion('default')}
+                >
+                  {expandedPrompts['default'] ? 'Show Less' : 'Show More'}
+                </button>
                 <span className="default-badge">Default</span>
                 {activePrompt && activePrompt.id === defaultPrompt.id && (
                   <span className="active-badge">Active</span>
@@ -182,8 +202,18 @@ const PromptManager = ({ onClose }) => {
           <div className="prompts-list">
             {prompts.map(prompt => (
               <div key={prompt.id} className={`prompt-item ${activePrompt && activePrompt.id === prompt.id ? 'active' : ''}`}>
-                <div className="prompt-preview">{prompt.content.substring(0, 100)}...</div>
+                <div className={`prompt-preview ${expandedPrompts[prompt.id] ? 'expanded' : ''}`}>
+                  {expandedPrompts[prompt.id] 
+                    ? prompt.content 
+                    : `${prompt.content.substring(0, 200)}${prompt.content.length > 200 ? '...' : ''}`}
+                </div>
                 <div className="prompt-actions">
+                  <button 
+                    className="toggle-button" 
+                    onClick={() => togglePromptExpansion(prompt.id)}
+                  >
+                    {expandedPrompts[prompt.id] ? 'Show Less' : 'Show More'}
+                  </button>
                   {activePrompt && activePrompt.id === prompt.id ? (
                     <span className="active-badge">Active</span>
                   ) : (
