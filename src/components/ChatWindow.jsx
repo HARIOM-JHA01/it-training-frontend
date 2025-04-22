@@ -40,7 +40,7 @@ const ChatWindow = () => {
     try {
       const payload = { name, clientName };
       setRequestPayload(payload);
-      const res = await axios.post(`${API_BASE_URL}/api/chat/start`, payload);
+      const res = await axios.post(`${API_BASE_URL}/api/chat/start-session`, payload);
       setResponseData(res.data);
       setMessages([{ role: "ai", content: res.data.aiResponse }]);
 
@@ -86,6 +86,7 @@ const ChatWindow = () => {
       const payload = {
         conversationHistory: updatedMessages,
         userMessage: newMessage.content, // Use content from newMessage
+        interactionStep: currentInteraction // Add the interaction step to the payload
       };
       setRequestPayload(payload);
       const res = await axios.post(`${API_BASE_URL}/api/chat/respond`, payload);

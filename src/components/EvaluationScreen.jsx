@@ -220,6 +220,16 @@ const EvaluationScreen = ({ conversationHistory, onRestart }) => {
           <div className="overall-feedback">
             <h2>Overall Assessment</h2>
             
+            {evaluation.overallAssessment && (
+              <div className="overall-assessment">
+                <div className="assessment-content">
+                  {evaluation.overallAssessment.split('\n').map((paragraph, idx) => (
+                    <p key={idx}>{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="strengths">
               <h3>Key Strengths</h3>
               <ul>

@@ -660,3 +660,27 @@
     grid-template-columns: 1fr;
   }
 }
+
+.overall-assessment {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.assessment-content {
+  color: #1e293b;
+  line-height: 1.8;
+  font-size: 1rem;
+}
+
+.assessment-content p {
+  margin-bottom: 1rem;
+  text-align: justify;
+}
+
+.assessment-content p:last-child {
+  margin-bottom: 0;
+}
