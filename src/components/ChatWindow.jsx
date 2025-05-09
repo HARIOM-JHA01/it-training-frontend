@@ -22,6 +22,7 @@ const ChatWindow = () => {
   const [responseData, setResponseData] = useState(null);
   const [currentInteraction, setCurrentInteraction] = useState(1);
   const [totalInteractions, setTotalInteractions] = useState(6); // Default to 6 interactions
+  const [selectedModel, setSelectedModel] = useState("bedrock-claude-2"); // Default model
   const chatBoxRef = useRef(null);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ const ChatWindow = () => {
 
   const startChat = async () => {
     try {
-      const payload = { name, clientName };
+      const payload = { name, clientName, model: selectedModel };
       setRequestPayload(payload);
       const res = await axios.post(`${API_BASE_URL}/api/chat/start-session`, payload);
       setResponseData(res.data);
@@ -74,48 +75,44 @@ const ChatWindow = () => {
     setInput("");
     setLoading(true);
 
-    // --- NEW: Immediately update interaction state if this is the last message ---
-    const isLastUserMessage = currentInteraction === totalInteractions;
-    if (isLastUserMessage) {
-      // Increment interaction count locally to disable input immediately
-      setCurrentInteraction(currentInteraction + 1);
-    }
-    // --- END NEW ---
-
+    // --- Calculate current interaction based on message pairs ---
+    // First message pair (AI greeting + user first message) is interaction 1
+    // We only increment the interaction AFTER user responds to an AI message
+    const isLastInteraction = currentInteraction === totalInteractions;
+    
     try {
       const payload = {
         conversationHistory: updatedMessages,
-        userMessage: newMessage.content, // Use content from newMessage
-        interactionStep: currentInteraction // Add the interaction step to the payload
+        userMessage: newMessage.content,
+        interactionStep: currentInteraction,
+        model: selectedModel
       };
       setRequestPayload(payload);
       const res = await axios.post(`${API_BASE_URL}/api/chat/respond`, payload);
       setResponseData(res.data);
       const aiMessage = { role: "ai", content: res.data.aiResponse };
       setMessages([...updatedMessages, aiMessage]);
-
-      // Update interaction step from response (will sync with backend)
-      if (res.data.promptInfo) {
-        const backendStep = res.data.promptInfo.interactionStep;
-        // Only update if backend step is different, otherwise keep local immediate update
-        if (backendStep !== currentInteraction) {
-           setCurrentInteraction(backendStep);
-        }
-
-        // Scroll logic (can remain as is or be adjusted based on preference)
-        if (backendStep > totalInteractions) {
-          setTimeout(() => {
-            chatBoxRef.current?.scrollTo({
-              top: chatBoxRef.current.scrollHeight,
-              behavior: 'smooth'
-            });
-          }, 300);
-        }
+      
+      // Only increment interaction count AFTER a complete exchange
+      // If we just completed the last interaction, increment past totalInteractions
+      if (isLastInteraction) {
+        setCurrentInteraction(totalInteractions + 1);
+      } else {
+        // Otherwise, increment normally
+        setCurrentInteraction(prev => prev + 1);
+      }
+      
+      // Scroll logic
+      if (isLastInteraction) {
+        setTimeout(() => {
+          chatBoxRef.current?.scrollTo({
+            top: chatBoxRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }, 300);
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      // Optionally revert interaction state if API call fails?
-      // if (isLastUserMessage) setCurrentInteraction(totalInteractions);
     } finally {
       setLoading(false);
     }
@@ -182,6 +179,17 @@ const ChatWindow = () => {
               className="name-input"
               required
             />
+            <select
+              className="model-select"
+              value={selectedModel}
+              onChange={e => setSelectedModel(e.target.value)}
+              style={{ marginTop: 12, marginBottom: 12 }}
+            >
+              <option value="qwen2.5:32b">Qwen2.5:32b (default)</option>
+              <option value="llama3.1:latest">Llama3.1:latest</option>
+              <option value="bedrock-claude-2">Bedrock Claude 2</option>
+              <option value="bedrock-llama3-70b">Bedrock Llama 3 70B</option>
+            </select>
             <button type="submit" className="start-button">
               Start Chat
             </button>
